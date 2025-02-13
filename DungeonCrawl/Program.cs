@@ -1,4 +1,5 @@
-﻿using System.Numerics;
+﻿using System;
+using System.Numerics;
 
 namespace DungeonCrawl
 {
@@ -8,13 +9,15 @@ namespace DungeonCrawl
 		CharacterCreation,
 		GameLoop,
 		Inventory,
-		DeathScreen
+		DeathScreen,
+		Quit
 	}
 	enum PlayerTurnResult
 	{
 		TurnOver,
 		NewTurn,
 		OpenInventory,
+		NextLevel,
 		BackToGame
 	}
 
@@ -39,7 +42,8 @@ namespace DungeonCrawl
 			Door,
 			Monster,
 			Item,
-			Player
+			Player,
+			Stairs
 		}
 		public int width;
 		public int height;
@@ -88,34 +92,41 @@ namespace DungeonCrawl
 
 		static void Main(string[] args)
 		{
-			GameState state = GameState.CharacterCreation;
-
-			// Character creation 
-			PlayerCharacter player = CreateCharacter();
-			Console.CursorVisible = false;
-			Console.Clear();
-
-			// Map Creation 
+			List<Monster> monsters = null;
+			List<Item> items = null;
+			PlayerCharacter player = null;
+			Map currentLevel = null;
 			Random random = new Random();
-			Map level1 = CreateMap(random);
-
-			// Enemy init
-			List<Monster> monsters = CreateEnemies(level1, random);
-			// Item init
-			List<Item> items = CreateItems(level1, random);
-			// Player init
-			PlacePlayerToMap(player, level1);
 
 			List<int> dirtyTiles = new List<int>();
 			List<string> messages = new List<string>();
-			// Game loop
-			state = GameState.GameLoop;
-			while (true)
+
+			// Main loop
+			GameState state = GameState.CharacterCreation;
+			while (state != GameState.Quit)
 			{
 				switch (state)
 				{
+					case GameState.CharacterCreation:
+						// Character creation screen
+						player = CreateCharacter();
+						Console.CursorVisible = false;
+						Console.Clear();
+
+						// Map Creation 
+						currentLevel = CreateMap(random);
+
+						// Enemy init
+						monsters = CreateEnemies(currentLevel, random);
+						// Item init
+						items = CreateItems(currentLevel, random);
+						// Player init
+						PlacePlayerToMap(player, currentLevel);
+						PlaceStairsToMap(currentLevel);
+						state = GameState.GameLoop;
+						break;
 					case GameState.GameLoop:
-						DrawMap(level1, dirtyTiles);
+						DrawMap(currentLevel, dirtyTiles);
 						dirtyTiles.Clear();
 						DrawEnemies(monsters);
 						DrawItems(items);
@@ -130,7 +141,7 @@ namespace DungeonCrawl
 						while (true)
 						{
 							messages.Clear();
-							PlayerTurnResult result = DoPlayerTurn(level1, player, monsters, items, dirtyTiles, messages);
+							PlayerTurnResult result = DoPlayerTurn(currentLevel, player, monsters, items, dirtyTiles, messages);
 							DrawInfo(player, monsters, items, messages);
 							if (result == PlayerTurnResult.TurnOver)
 							{
@@ -142,15 +153,29 @@ namespace DungeonCrawl
 								state = GameState.Inventory;
 								break;
 							}
+							else if (result == PlayerTurnResult.NextLevel)
+							{
+								currentLevel = CreateMap(random);
+								monsters = CreateEnemies(currentLevel, random);
+								items = CreateItems(currentLevel, random);
+								PlacePlayerToMap(player, currentLevel);
+								PlaceStairsToMap(currentLevel);
+								Console.Clear();
+								break;
+							}
 						}
 						// Either do computer turn or wait command again
 						// Do computer turn
 						// Process enemies
-						ProcessEnemies(monsters, level1, player, dirtyTiles, messages);
+						ProcessEnemies(monsters, currentLevel, player, dirtyTiles, messages);
 
 						DrawInfo(player, monsters, items, messages);
 
 						// Is player dead?
+						if (player.hitpoints < 0)
+						{
+							state = GameState.DeathScreen;
+						}
 
 						break;
 					case GameState.Inventory:
@@ -159,15 +184,33 @@ namespace DungeonCrawl
 						if (inventoryResult == PlayerTurnResult.BackToGame)
 						{
 							state = GameState.GameLoop;
-							DrawMapAll(level1);
+							DrawMapAll(currentLevel);
 							DrawInfo(player, monsters, items, messages);
 						}
 						// Read player command
 						// Change back to game loop
 						break;
 					case GameState.DeathScreen:
-						// Run death animation
-						// Wait until keypress
+						DrawEndScreen(random);
+						// Animation is over
+						Console.SetCursorPosition(Console.WindowWidth/2 - 4, Console.WindowHeight / 2);
+						Print("YOU DIED", ConsoleColor.Yellow);
+						Console.SetCursorPosition(Console.WindowWidth/2 - 4, Console.WindowHeight / 2 + 1);
+						while(true)
+						{ 
+							Print("Play again (y/n)", ConsoleColor.Gray);
+							ConsoleKeyInfo answer = Console.ReadKey();
+							if (answer.Key == ConsoleKey.Y)
+							{
+								state = GameState.CharacterCreation;
+								break;
+							}
+							else if (answer.Key == ConsoleKey.N)
+							{
+								state = GameState.Quit;
+								break;
+							}
+						}
 						break;
 				};
 			}
@@ -253,7 +296,32 @@ namespace DungeonCrawl
 				Print(symbol);
 			}
 		}
-
+		static void DrawEndScreen(Random random)
+		{
+			// Run death animation: blood flowing down the screen in columns
+			// Wait until keypress
+			byte[] speeds = new byte[Console.WindowWidth];
+			byte[] ends = new byte[Console.WindowWidth];
+			for (int i = 0; i < speeds.Length; i++)
+			{
+				speeds[i] = (byte)random.Next(1, 4);
+				ends[i] = 0;
+			}
+			Console.BackgroundColor = ConsoleColor.DarkRed;
+			Console.ForegroundColor = ConsoleColor.White;
+			
+			
+			for (int row = 0; row < Console.WindowHeight - 2; row++)
+			{
+				Console.SetCursorPosition(0, row);
+				for (int i = 0; i < Console.WindowWidth; i++)
+				{
+					Console.Write(" ");
+				}
+				Thread.Sleep(100);
+			}
+			
+		}
 
 		/*
 		 * Character functions
@@ -575,19 +643,29 @@ namespace DungeonCrawl
 		{
 			for (int i = 0; i < level.Tiles.Length; i++)
 			{
+				if (level.Tiles[i] == Map.Tile.Player)
 				{
-					if (level.Tiles[i] == Map.Tile.Player)
-					{
-						level.Tiles[i] = Map.Tile.Floor;
-						int px = i % level.width;
-						int py = i / level.width;
+					level.Tiles[i] = Map.Tile.Floor;
+					int px = i % level.width;
+					int py = i / level.width;
 
-						character.position = new Vector2(px, py);
-						break;
-					}
+					character.position = new Vector2(px, py);
+					break;
+				}	
+			}
+		}
+		static void PlaceStairsToMap(Map level)
+		{
+			for (int i = level.Tiles.Length-1; i >= 0; i--)
+			{
+				if (level.Tiles[i] == Map.Tile.Floor)
+				{
+					level.Tiles[i] = Map.Tile.Stairs;
+					break;
 				}
 			}
 		}
+
 		static void DrawTile(byte x, byte y, Map.Tile tile)
 		{
 			Console.SetCursorPosition(x, y);
@@ -601,6 +679,8 @@ namespace DungeonCrawl
 
 				case Map.Tile.Door:
 					Print("+", ConsoleColor.Yellow); break;
+				case Map.Tile.Stairs:
+					Print(">", ConsoleColor.Yellow); break;
 
 				default: break;
 			}
@@ -694,19 +774,19 @@ namespace DungeonCrawl
 		{
 			int infoLine1 = Console.WindowHeight - INFO_HEIGHT;
 			Console.SetCursorPosition(0, infoLine1);
-			Print($"{player.name}: hp ({player.hitpoints}/{player.maxHitpoints}) gold ({player.gold})", ConsoleColor.White);
+			Print($"{player.name}: hp ({player.hitpoints}/{player.maxHitpoints}) gold ({player.gold}) ", ConsoleColor.White);
 			int damage = 1;
 			if (player.weapon != null)
 			{
 				damage = player.weapon.quality;
 			}
-			Print($"Weapon damage: {damage}");
+			Print($"Weapon damage: {damage} ");
 			int armor = 0;
 			if (player.armor != null)
 			{
 				armor = player.armor.quality;
 			}
-			Print($"Armor: {armor}");
+			Print($"Armor: {armor} ");
 
 
 
@@ -897,6 +977,11 @@ namespace DungeonCrawl
 			else if (destination == Map.Tile.Wall)
 			{
 				messages.Add("You hit a wall");
+			}
+			else if (destination == Map.Tile.Stairs)
+			{
+				messages.Add("You find stairs leading down");
+				return PlayerTurnResult.NextLevel;
 			}
 
 			return PlayerTurnResult.TurnOver;
