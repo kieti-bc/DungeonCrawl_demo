@@ -21,17 +21,7 @@ namespace DungeonCrawl
 		BackToGame
 	}
 
-	internal class PlayerCharacter
-	{
-		public string name;
-		public int hitpoints;
-		public int maxHitpoints;
-		public Item weapon;
-		public Item armor;
-		public int gold;
-		public Vector2 position;
-		public List<Item> inventory;
-	}
+
 
 	internal class Map
 	{
@@ -67,13 +57,7 @@ namespace DungeonCrawl
 		Treasure
 	}
 
-	internal class Item
-	{
-		public string name;
-		public int quality; // means different things depending on the type
-		public Vector2 position;
-		public ItemType type;
-	}
+
 
 
 	internal class Program
