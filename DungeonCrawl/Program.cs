@@ -21,34 +21,6 @@ namespace DungeonCrawl
 		BackToGame
 	}
 
-
-
-	internal class Map
-	{
-		public enum Tile : sbyte
-		{
-			Floor,
-			Wall,
-			Door,
-			Monster,
-			Item,
-			Player,
-			Stairs
-		}
-		public int width;
-		public int height;
-		public Tile[] Tiles;
-	}
-
-	internal class Monster
-	{
-		public string name;
-		public Vector2 position;
-		public int hitpoints;
-		public char symbol;
-		public ConsoleColor color;
-	}
-
 	internal enum ItemType
 	{
 		Weapon,
@@ -56,8 +28,6 @@ namespace DungeonCrawl
 		Potion,
 		Treasure
 	}
-
-
 
 
 	internal class Program
@@ -101,7 +71,7 @@ namespace DungeonCrawl
 						currentLevel = CreateMap(random);
 
 						// Enemy init
-						monsters = CreateEnemies(currentLevel, random);
+						monsters = currentLevel.CreateEnemies( random);
 						// Item init
 						items = CreateItems(currentLevel, random);
 						// Player init
@@ -140,7 +110,7 @@ namespace DungeonCrawl
 							else if (result == PlayerTurnResult.NextLevel)
 							{
 								currentLevel = CreateMap(random);
-								monsters = CreateEnemies(currentLevel, random);
+								monsters = currentLevel.CreateEnemies( random);
 								items = CreateItems(currentLevel, random);
 								PlacePlayerToMap(player, currentLevel);
 								PlaceStairsToMap(currentLevel);
@@ -539,28 +509,9 @@ namespace DungeonCrawl
 			return level;
 		}
 
-		static Monster CreateMonster(string name, int hitpoints, char symbol, ConsoleColor color, Vector2 position)
-		{
-			Monster monster = new Monster();
-			monster.name = name;
-			monster.hitpoints = hitpoints;
-			monster.symbol = symbol;
-			monster.color = color;
-			monster.position = position;
-			return monster;
-		}
 
-		static Monster CreateRandomMonster(Random random, Vector2 position)
-		{
-			int type = random.Next(4);
-			return type switch
-			{
-				0 => CreateMonster("Goblin", 5, 'g', ConsoleColor.Green, position),
-				1 => CreateMonster("Bat Man", 2, 'M', ConsoleColor.Magenta, position),
-				2 => CreateMonster("Orc", 15, 'o', ConsoleColor.Red, position),
-				3 => CreateMonster("Bunny", 1, 'B', ConsoleColor.Yellow, position)
-			};
-		}
+
+		
 		static Item CreateRandomItem(Random random, Vector2 position)
 		{
 			ItemType type = Enum.GetValues<ItemType>()[random.Next(4)];
@@ -573,25 +524,7 @@ namespace DungeonCrawl
 			};
 			return i;
 		}
-		static List<Monster> CreateEnemies(Map level, Random random)
-		{
-			List<Monster> monsters = new List<Monster>();
-
-			for (int y = 0; y < level.height; y++)
-			{
-				for (int x = 0; x < level.width; x++)
-				{
-					int ti = y * level.width + x;
-					if (level.Tiles[ti] == Map.Tile.Monster)
-					{
-						Monster m = CreateRandomMonster(random, new Vector2(x, y));
-						monsters.Add(m);
-						level.Tiles[ti] = (sbyte)Map.Tile.Floor;
-					}
-				}
-			}
-			return monsters;
-		}
+		
 
 		static Item CreateItem(string name, ItemType type, int quality, Vector2 position)
 		{
